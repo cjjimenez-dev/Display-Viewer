@@ -1,0 +1,14 @@
+# Build and temporary files
+*.obj
+*.pdb
+*.tmp
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE files
+.vs/
+.vscode/
+.idea/
