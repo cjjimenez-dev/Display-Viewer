@@ -96,9 +96,18 @@ namespace Display2Viewer
         private ComboBox cmbWindowList;
         private Button btnPullToMain;
         private Button btnSendToDisplay2;
+        private Button btnHideToTray;
         private Label lblStatus;
         private DoubleBufferedPanel canvasPanel;
         private Timer captureTimer;
+
+        // --- System Tray ---
+        private NotifyIcon trayIcon;
+        private ContextMenuStrip trayMenu;
+        private ToolStripMenuItem trayItemStealth;
+        private ToolStripMenuItem trayItemTopMost;
+        private bool reallyExit = false;
+        private bool trayBalloonShown = false;
 
         // --- Capture State (Reused buffer for low RAM) ---
         private Screen targetScreen;
@@ -124,6 +133,7 @@ namespace Display2Viewer
             this.ForeColor = Color.White;
             this.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
             this.KeyPreview = true;
+            this.ShowInTaskbar = false; // Completely hidden from the Windows Taskbar
 
             try
             {
@@ -133,6 +143,7 @@ namespace Display2Viewer
 
             InitializeToolbar();
             InitializeCanvas();
+            InitializeTrayIcon();
             PopulateDisplays();
             PopulateWindowList();
 
@@ -144,6 +155,18 @@ namespace Display2Viewer
             this.Load += MainForm_Load;
             this.FormClosing += MainForm_FormClosing;
             this.KeyDown += MainForm_KeyDown;
+            this.Resize += (s, e) => {
+                if (this.WindowState == FormWindowState.Minimized)
+                {
+                    this.Hide();
+                }
+            };
+            this.VisibleChanged += (s, e) => {
+                if (this.Visible)
+                {
+                    ApplyStealthAffinity();
+                }
+            };
         }
 
         private void InitializeToolbar()
@@ -188,7 +211,10 @@ namespace Display2Viewer
                 ForeColor = Color.FromArgb(110, 231, 183),
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold)
             };
-            chkStealth.CheckedChanged += (s, e) => ApplyStealthAffinity();
+            chkStealth.CheckedChanged += (s, e) => {
+                ApplyStealthAffinity();
+                if (trayItemStealth != null) trayItemStealth.Checked = chkStealth.Checked;
+            };
 
             chkInteractive = new CheckBox
             {
@@ -242,19 +268,25 @@ namespace Display2Viewer
                 Location = new Point(664, 39),
                 ForeColor = Color.LightGray
             };
-            chkTopMost.CheckedChanged += (s, e) => { this.TopMost = chkTopMost.Checked; };
+            chkTopMost.CheckedChanged += (s, e) => {
+                this.TopMost = chkTopMost.Checked;
+                if (trayItemTopMost != null) trayItemTopMost.Checked = chkTopMost.Checked;
+            };
+
+            btnHideToTray = CreateStyledButton("Hide to Tray", new Point(774, 36), new Size(95, 25));
+            btnHideToTray.Click += (s, e) => ToggleWindowVisibility();
 
             lblStatus = new Label
             {
                 Text = "Ready",
                 AutoSize = true,
-                Location = new Point(785, 40),
+                Location = new Point(880, 40),
                 ForeColor = Color.FromArgb(180, 180, 195)
             };
 
             topToolbar.Controls.AddRange(new Control[] {
                 lblDisp, cmbDisplays, btnRefreshDisplays, chkStealth, chkInteractive, chkReturnCursor,
-                lblWin, cmbWindowList, btnSendToDisplay2, btnPullToMain, chkTopMost, lblStatus
+                lblWin, cmbWindowList, btnSendToDisplay2, btnPullToMain, chkTopMost, btnHideToTray, lblStatus
             });
 
             this.Controls.Add(topToolbar);
@@ -605,6 +637,74 @@ namespace Display2Viewer
             }
         }
 
+        private void InitializeTrayIcon()
+        {
+            trayMenu = new ContextMenuStrip();
+            trayMenu.BackColor = Color.FromArgb(32, 32, 40);
+            trayMenu.ForeColor = Color.White;
+            trayMenu.RenderMode = ToolStripRenderMode.System;
+
+            ToolStripMenuItem itemShowHide = new ToolStripMenuItem("Show / Hide Viewer", null, (s, e) => ToggleWindowVisibility());
+            itemShowHide.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+
+            trayItemStealth = new ToolStripMenuItem("Stealth Mode (AnyDesk Shield)", null, (s, e) => {
+                chkStealth.Checked = !chkStealth.Checked;
+            });
+            trayItemStealth.Checked = chkStealth.Checked;
+
+            trayItemTopMost = new ToolStripMenuItem("Always on Top", null, (s, e) => {
+                chkTopMost.Checked = !chkTopMost.Checked;
+            });
+            trayItemTopMost.Checked = chkTopMost.Checked;
+
+            ToolStripMenuItem itemSend = new ToolStripMenuItem("Send App -> Display 2", null, (s, e) => MoveSelectedWindowToScreen(targetScreen));
+            ToolStripMenuItem itemPull = new ToolStripMenuItem("Pull App -> Display 1", null, (s, e) => MoveSelectedWindowToScreen(Screen.PrimaryScreen));
+
+            ToolStripMenuItem itemExit = new ToolStripMenuItem("Exit", null, (s, e) => {
+                reallyExit = true;
+                this.Close();
+            });
+
+            trayMenu.Items.Add(itemShowHide);
+            trayMenu.Items.Add(new ToolStripSeparator());
+            trayMenu.Items.Add(trayItemStealth);
+            trayMenu.Items.Add(trayItemTopMost);
+            trayMenu.Items.Add(new ToolStripSeparator());
+            trayMenu.Items.Add(itemSend);
+            trayMenu.Items.Add(itemPull);
+            trayMenu.Items.Add(new ToolStripSeparator());
+            trayMenu.Items.Add(itemExit);
+
+            trayIcon = new NotifyIcon
+            {
+                Text = "Display 2 Viewer (Hidden from Taskbar)",
+                Icon = this.Icon,
+                ContextMenuStrip = trayMenu,
+                Visible = true
+            };
+
+            trayIcon.DoubleClick += (s, e) => ToggleWindowVisibility();
+        }
+
+        private void ToggleWindowVisibility()
+        {
+            if (this.Visible && this.WindowState != FormWindowState.Minimized)
+            {
+                this.Hide();
+            }
+            else
+            {
+                this.Show();
+                if (this.WindowState == FormWindowState.Minimized)
+                {
+                    this.WindowState = FormWindowState.Normal;
+                }
+                this.BringToFront();
+                this.Activate();
+                ApplyStealthAffinity();
+            }
+        }
+
         private FormWindowState prevWindowState = FormWindowState.Normal;
         private FormBorderStyle prevBorderStyle = FormBorderStyle.Sizable;
         private bool isFullscreen = false;
@@ -626,6 +726,11 @@ namespace Display2Viewer
                 chkTopMost.Checked = !chkTopMost.Checked;
                 e.Handled = true;
             }
+            else if (e.Control && e.KeyCode == Keys.H)
+            {
+                ToggleWindowVisibility();
+                e.Handled = true;
+            }
             else if (e.KeyCode == Keys.Escape)
             {
                 if (isFullscreen)
@@ -635,7 +740,8 @@ namespace Display2Viewer
                 }
                 else
                 {
-                    this.Close();
+                    // Esc hides to tray instead of quitting
+                    this.Hide();
                 }
             }
         }
@@ -660,7 +766,30 @@ namespace Display2Viewer
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            // If closed via X button or Alt+F4, minimize/hide to System Tray
+            if (!reallyExit && e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                this.Hide();
+
+                if (!trayBalloonShown)
+                {
+                    try
+                    {
+                        trayIcon.ShowBalloonTip(1500, "Display 2 Viewer", "Running hidden in the System Tray. Double-click to restore.", ToolTipIcon.Info);
+                    }
+                    catch { }
+                    trayBalloonShown = true;
+                }
+                return;
+            }
+
             captureTimer.Stop();
+            if (trayIcon != null)
+            {
+                trayIcon.Visible = false;
+                trayIcon.Dispose();
+            }
             if (frameGraphics != null) frameGraphics.Dispose();
             if (frameBuffer != null) frameBuffer.Dispose();
         }

@@ -27,7 +27,16 @@ A high-performance, ultra-lightweight (~17 KB) desktop application for Windows t
 
 ## Features & Controls
 
-### 1. Interactive Control of Display 2
+### 1. Stealth Mode & System Tray Invisibility
+- **Hidden from Windows Taskbar**: The app runs with `ShowInTaskbar = false`. No taskbar tab or button appears on your screen or on AnyDesk/TeamViewer.
+- **System Tray Icon**: Lives quietly in your Windows system tray (bottom-right near the clock).
+  - **Double-click Tray Icon**: Instantly Show or Hide the viewer.
+  - **Right-click Tray Icon**: Context menu to toggle Stealth Mode, toggle Always on Top, send/pull apps, or cleanly Exit.
+  - **Close Button (`X`) or Minimize**: Minimizes the app to the System Tray instead of terminating it.
+  - **`Ctrl + H` or "Hide to Tray" Button**: Instantly hides the viewer window to the tray.
+- **AnyDesk Shield**: Window display affinity is set to `WDA_EXCLUDEFROMCAPTURE (0x00000011)`. Any remote viewer looking at Display 1 cannot see this window even when it is open right in front of you.
+
+### 2. Interactive Control of Display 2
 - **Click Inside the Preview**: Left-click, right-click, middle-click, drag, or scroll your mouse wheel inside the viewer canvas. Your action will be forwarded to that exact location on Display 2.
 - **Type into Apps on Display 2**: Clicking on any app inside the preview brings that app into focus on Display 2, so you can immediately type into it.
 - **Snap Cursor Back (`[✓] Snap Cursor Back`)**: When checked, your mouse automatically jumps back to your viewer window on Display 1 after clicking, so your cursor never gets stranded off-screen.
@@ -42,10 +51,11 @@ Move windows between displays without blindly dragging them with the mouse:
 
 | Shortcut | Action |
 |---|---|
+| **`Ctrl + H`** | Quickly Hide / Show viewer (toggle system tray) |
 | **`F11`** | Toggle Fullscreen / Borderless mode |
 | **`Ctrl + S`** | Toggle Stealth Mode (Invisible / Visible to AnyDesk) |
 | **`Ctrl + T`** | Toggle Always on Top (Keep pinned over other windows) |
-| **`Esc`** | Exit Fullscreen (or close viewer) |
+| **`Esc`** | Exit Fullscreen (or hide to tray) |
 
 ---
 
